@@ -20,4 +20,17 @@ model User {
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  commits CommitLog[]
+}
+
+model CommitLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  scheduledFor DateTime
+  count        Int
+  type         String   // "scheduled" | "custom"
+  status       String   // "pending" | "done" | "failed"
+  note         String?
+  createdAt    DateTime @default(now())
 }

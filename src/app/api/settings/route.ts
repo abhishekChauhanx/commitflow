@@ -1,0 +1,46 @@
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: {
+      repoName: true,
+      commitsPerDay: true,
+      commitTime: true,
+      timezone: true,
+      active: true,
+    },
+  });
+
+  return NextResponse.json({ settings: user });
+}
+
+export async function PATCH(req: Request) {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { repoName, commitsPerDay, commitTime, timezone, active } = body;
+
+  const updated = await prisma.user.update({
+    where: { email: session.user.email },
+    data: {
+      ...(repoName !== undefined && { repoName }),
+      ...(commitsPerDay !== undefined && { commitsPerDay }),
+      ...(commitTime !== undefined && { commitTime }),
+      ...(timezone !== undefined && { timezone }),
+      ...(active !== undefined && { active }),
+    },
+  });
+
+  return NextResponse.json({ success: true, settings: updated });
+}

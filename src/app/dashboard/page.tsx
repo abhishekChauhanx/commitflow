@@ -1,30 +1,29 @@
-import { auth, signOut } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import RepoOnboarding from "@/components/dashboard/RepoOnboarding";
 
 export default async function DashboardPage() {
   const session = await auth();
-  if (!session) redirect("/");
+
+  const user = await prisma.user.findUnique({
+    where: { email: session!.user!.email! },
+  });
+
+  if (!user?.repoName) {
+    return <RepoOnboarding />;
+  }
 
   return (
-    <main className="min-h-screen p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold">
-          Welcome, {session.user?.name ?? "Developer"} 👋
-        </h1>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <button className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-md text-sm">
-            Logout
-          </button>
-        </form>
-      </div>
-      <p className="text-gray-400">
-        Dashboard content (settings, commits, heatmap) comes in Phase 2.
+    <div>
+      <h1 className="text-2xl font-bold mb-2">
+        Welcome back, {session?.user?.name} 👋
+      </h1>
+      <p className="text-gray-400 mb-6">
+        Target repo: <span className="text-emerald-400">{user.repoName}</span>
       </p>
-    </main>
+      <p className="text-gray-500">
+        Heatmap, streaks, and stats coming in Phase 5.
+      </p>
+    </div>
   );
 }
