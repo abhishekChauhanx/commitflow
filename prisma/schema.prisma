@@ -4,23 +4,24 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id             String   @id @default(cuid())
+  id             String      @id @default(cuid())
   name           String?
-  email          String?  @unique
-  githubId       String   @unique
+  email          String?     @unique
+  githubId       String      @unique
   githubUsername String
   githubToken    String
   repoName       String?
-  commitsPerDay  Int      @default(1)
-  commitTime     String   @default("18:00")
-  timezone       String   @default("UTC")
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  commits CommitLog[]
+  commitsPerDay  Int         @default(1)
+  commitTime     String      @default("18:00")
+  timezone       String      @default("UTC")
+  active         Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  commits        CommitLog[]
 }
 
 model CommitLog {
@@ -29,8 +30,8 @@ model CommitLog {
   user         User     @relation(fields: [userId], references: [id])
   scheduledFor DateTime
   count        Int
-  type         String   // "scheduled" | "custom"
-  status       String   // "pending" | "done" | "failed"
+  type         String
+  status       String
   note         String?
   createdAt    DateTime @default(now())
 }

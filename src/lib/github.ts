@@ -105,3 +105,122 @@ export async function createCommit(
 
   return commitRes.json();
 }
+
+export async function createBackdatedCommit(
+  token: string,
+  owner: string,
+  repo: string,
+  message: string,
+  date: Date,
+  authorEmail: string,
+  authorName: string
+) {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+  };
+
+  // Step 1: get the latest commit on the default branch (to build on top of it)
+  const repoRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, { headers });
+  if (!repoRes.ok) throw new Error("Failed to fetch repo info");
+  const repoData = await repoRes.json();
+  const branch = repoData.default_branch;
+
+  const refRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/ref/heads/${branch}`,
+    { headers }
+  );
+  if (!refRes.ok) throw new Error("Failed to fetch branch ref");
+  const refData = await refRes.json();
+  const latestCommitSha = refData.object.sha;
+
+  const commitRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/commits/${latestCommitSha}`,
+    { headers }
+  );
+  const commitData = await commitRes.json();
+  const baseTreeSha = commitData.tree.sha;
+
+  // Step 2: get current file content (if it exists) so we can append to it
+  const path = "log.md";
+  const fileRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+    { headers }
+  );
+
+  let existingContent = "";
+  if (fileRes.ok) {
+    const fileData = await fileRes.json();
+    existingContent = Buffer.from(fileData.content, "base64").toString("utf-8");
+  }
+
+  const newContent = `${existingContent}\n- ${date.toISOString()} (backfilled): ${message}`;
+
+  // Step 3: create a new blob (the raw file content)
+  const blobRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/blobs`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ content: newContent, encoding: "utf-8" }),
+    }
+  );
+  const blobData = await blobRes.json();
+
+  // Step 4: create a new tree (the file structure) pointing to that blob
+  const treeRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/trees`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_tree: baseTreeSha,
+        tree: [
+          {
+            path,
+            mode: "100644",
+            type: "blob",
+            sha: blobData.sha,
+          },
+        ],
+      }),
+    }
+  );
+  const treeData = await treeRes.json();
+
+  // Step 5: create the actual commit, with a custom author/committer date
+  const isoDate = date.toISOString();
+  const newCommitRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/commits`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        message,
+        tree: treeData.sha,
+        parents: [latestCommitSha],
+        author: { name: authorName, email: authorEmail, date: isoDate },
+committer: { name: authorName, email: authorEmail, date: isoDate },
+      }),
+    }
+  );
+  const newCommitData = await newCommitRes.json();
+
+  // Step 6: move the branch pointer to this new commit
+  const updateRefRes = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/refs/heads/${branch}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ sha: newCommitData.sha }),
+    }
+  );
+
+  if (!updateRefRes.ok) {
+    const error = await updateRefRes.json();
+    throw new Error(error.message || "Failed to update branch ref");
+  }
+
+  return newCommitData;
+}

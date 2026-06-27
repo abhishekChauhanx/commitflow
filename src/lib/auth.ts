@@ -13,16 +13,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === "github") {
+        let email = user.email;
+
+        // Fallback: fetch verified primary email directly if not provided
+        if (!email && account.access_token) {
+          const res = await fetch("https://api.github.com/user/emails", {
+            headers: { Authorization: `Bearer ${account.access_token}` },
+          });
+          if (res.ok) {
+            const emails = await res.json();
+            const primary = emails.find((e: any) => e.primary && e.verified);
+            email = primary?.email ?? emails[0]?.email ?? null;
+          }
+        }
+
         await prisma.user.upsert({
           where: { githubId: account.providerAccountId },
           update: {
             githubUsername: (profile as any)?.login,
             githubToken: account.access_token ?? "",
-            email: user.email ?? undefined,
+            email: email ?? undefined,
             name: user.name ?? undefined,
           },
           create: {
-            email: user.email,
+            email,
             name: user.name,
             githubId: account.providerAccountId,
             githubUsername: (profile as any)?.login,
