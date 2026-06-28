@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { createCommit } from "@/lib/github";
 import { NextResponse } from "next/server";
-
+import { decrypt } from "@/lib/encryption";
 export async function POST(req: Request) {
   // Security: only allow calls that include our secret key
   const authHeader = req.headers.get("authorization");
@@ -50,11 +50,11 @@ export async function POST(req: Request) {
     try {
       for (let i = 0; i < user.commitsPerDay; i++) {
         await createCommit(
-          user.githubToken!,
-          user.githubUsername!,
-          user.repoName!,
-          `Scheduled commit ${i + 1}/${user.commitsPerDay}`
-        );
+  decrypt(user.githubToken!),
+  user.githubUsername!,
+  user.repoName!,
+  `Scheduled commit ${i + 1}/${user.commitsPerDay}`
+);
       }
 
       await prisma.commitLog.create({

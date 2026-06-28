@@ -2,14 +2,36 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createBackdatedCommit } from "@/lib/github";
 import { NextResponse } from "next/server";
+import { decrypt } from "@/lib/encryption";
+
+import { customCommitSchema } from "@/lib/validators";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+
 
 export async function POST(req: Request) {
   const session = await auth();
+  const allowed = checkRateLimit(`custom-commit-${session.user.email}`, 5, 60_000);
+if (!allowed) {
+  return NextResponse.json(
+    { error: "Too many requests. Please wait a moment and try again." },
+    { status: 429 }
+  );
+}
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { date, count, note } = await req.json();
+  const body = await req.json();
+  const parsed = customCommitSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors[0]?.message || "Invalid input" },
+      { status: 400 }
+    );
+  }
+const { date, count, note } = parsed.data;
 
   if (!date || !count) {
     return NextResponse.json(
@@ -40,15 +62,15 @@ export async function POST(req: Request) {
 
   try {
  for (let i = 0; i < count; i++) {
-  await createBackdatedCommit(
-    user.githubToken,
-    user.githubUsername,
-    user.repoName,
-    `Backfilled commit ${i + 1}/${count}${note ? `: ${note}` : ""}`,
-    targetDate,
-    user.email!,
-    user.name ?? user.githubUsername
-  );
+await createBackdatedCommit(
+  decrypt(user.githubToken),
+  user.githubUsername,
+  user.repoName,
+  `Backfilled commit ${i + 1}/${count}${note ? `: ${note}` : ""}`,
+  targetDate,
+  user.email!,
+  user.name ?? user.githubUsername
+);
 }
 
     const log = await prisma.commitLog.create({

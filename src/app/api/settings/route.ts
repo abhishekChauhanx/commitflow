@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-
+import { settingsSchema } from "@/lib/validators";
 export async function GET() {
   const session = await auth();
   if (!session?.user?.email) {
@@ -22,6 +22,8 @@ export async function GET() {
   return NextResponse.json({ settings: user });
 }
 
+
+
 export async function PATCH(req: Request) {
   const session = await auth();
   if (!session?.user?.email) {
@@ -29,7 +31,16 @@ export async function PATCH(req: Request) {
   }
 
   const body = await req.json();
-  const { repoName, commitsPerDay, commitTime, timezone, active } = body;
+  const parsed = settingsSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors[0]?.message || "Invalid input" },
+      { status: 400 }
+    );
+  }
+
+  const { repoName, commitsPerDay, commitTime, timezone, active } = parsed.data;
 
   const updated = await prisma.user.update({
     where: { email: session.user.email },

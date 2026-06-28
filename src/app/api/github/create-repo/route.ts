@@ -2,14 +2,26 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createUserRepo } from "@/lib/github";
 import { NextResponse } from "next/server";
-
+import { decrypt } from "@/lib/encryption";
+import { createRepoSchema } from "@/lib/validators";
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { name, isPrivate } = await req.json();
+
+
+  const body = await req.json();
+  const parsed = createRepoSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors[0]?.message || "Invalid input" },
+      { status: 400 }
+    );
+  }
+  const { name, isPrivate } = parsed.data;
 
   if (!name || typeof name !== "string") {
     return NextResponse.json({ error: "Repo name is required" }, { status: 400 });
@@ -24,7 +36,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const repo = await createUserRepo(user.githubToken, name, !!isPrivate);
+    const repo = await createUserRepo(decrypt(user.githubToken), name, !!isPrivate);
 
     await prisma.user.update({
       where: { id: user.id },

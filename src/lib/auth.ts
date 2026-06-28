@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import { prisma } from "@/lib/prisma";
+import { encrypt } from "@/lib/encryption";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -15,7 +16,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (account?.provider === "github") {
         let email = user.email;
 
-        // Fallback: fetch verified primary email directly if not provided
         if (!email && account.access_token) {
           const res = await fetch("https://api.github.com/user/emails", {
             headers: { Authorization: `Bearer ${account.access_token}` },
@@ -27,11 +27,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
         }
 
+        const encryptedToken = account.access_token
+          ? encrypt(account.access_token)
+          : "";
+
         await prisma.user.upsert({
           where: { githubId: account.providerAccountId },
           update: {
             githubUsername: (profile as any)?.login,
-            githubToken: account.access_token ?? "",
+            githubToken: encryptedToken,
             email: email ?? undefined,
             name: user.name ?? undefined,
           },
@@ -40,7 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             name: user.name,
             githubId: account.providerAccountId,
             githubUsername: (profile as any)?.login,
-            githubToken: account.access_token ?? "",
+            githubToken: encryptedToken,
           },
         });
       }

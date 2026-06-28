@@ -224,3 +224,51 @@ committer: { name: authorName, email: authorEmail, date: isoDate },
 
   return newCommitData;
 }
+
+
+export async function fetchContributions(token: string, username: string) {
+  const query = `
+    query($username: String!) {
+      user(login: $username) {
+        contributionsCollection {
+          contributionCalendar {
+            totalContributions
+            weeks {
+              contributionDays {
+                date
+                contributionCount
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const res = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables: { username } }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch contributions");
+  }
+
+  const data = await res.json();
+  const calendar = data.data?.user?.contributionsCollection?.contributionCalendar;
+
+  if (!calendar) {
+    throw new Error("No contribution data returned");
+  }
+
+  const days = calendar.weeks.flatMap((week: any) => week.contributionDays);
+
+  return {
+    total: calendar.totalContributions,
+    days: days.map((d: any) => ({ date: d.date, count: d.contributionCount })),
+  };
+}

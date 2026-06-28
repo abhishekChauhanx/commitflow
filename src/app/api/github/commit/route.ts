@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCommit } from "@/lib/github";
 import { NextResponse } from "next/server";
-
+import { decrypt } from "@/lib/encryption";
 export async function POST() {
   const session = await auth();
   if (!session?.user?.email) {
@@ -22,11 +22,11 @@ export async function POST() {
 
   try {
     const result = await createCommit(
-      user.githubToken,
-      user.githubUsername,
-      user.repoName,
-      "Manual test commit"
-    );
+  decrypt(user.githubToken),
+  user.githubUsername,
+  user.repoName,
+  "Manual test commit"
+);
 
     await prisma.commitLog.create({
       data: {

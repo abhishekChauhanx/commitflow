@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { fetchUserRepos } from "@/lib/github";
-import { NextResponse } from "next/server";
+import { fetchContributions } from "@/lib/github";
 import { decrypt } from "@/lib/encryption";
+import { NextResponse } from "next/server";
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.email) {
@@ -13,13 +14,16 @@ export async function GET() {
     where: { email: session.user.email },
   });
 
-  if (!user?.githubToken) {
-    return NextResponse.json({ error: "No GitHub token found" }, { status: 400 });
+  if (!user?.githubToken || !user.githubUsername) {
+    return NextResponse.json({ error: "Missing GitHub info" }, { status: 400 });
   }
 
   try {
-const repos = await fetchUserRepos(decrypt(user.githubToken));
-    return NextResponse.json({ repos });
+    const contributions = await fetchContributions(
+      decrypt(user.githubToken),
+      user.githubUsername
+    );
+    return NextResponse.json(contributions);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
