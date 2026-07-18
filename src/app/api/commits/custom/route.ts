@@ -1,25 +1,25 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createBackdatedCommit } from "@/lib/github";
-import { NextResponse } from "next/server";
 import { decrypt } from "@/lib/encryption";
-
 import { customCommitSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rateLimit";
-
-
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const session = await auth();
-  const allowed = checkRateLimit(`custom-commit-${session.user.email}`, 5, 60_000);
-if (!allowed) {
-  return NextResponse.json(
-    { error: "Too many requests. Please wait a moment and try again." },
-    { status: 429 }
-  );
-}
+
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Now TypeScript knows session.user.email is a string — safe to use here
+  const allowed = checkRateLimit(`custom-commit-${session.user.email}`, 5, 60_000);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a moment and try again." },
+      { status: 429 }
+    );
   }
 
   const body = await req.json();
@@ -31,14 +31,8 @@ if (!allowed) {
       { status: 400 }
     );
   }
-const { date, count, note } = parsed.data;
 
-  if (!date || !count) {
-    return NextResponse.json(
-      { error: "Date and count are required" },
-      { status: 400 }
-    );
-  }
+  const { date, count, note } = parsed.data;
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
@@ -51,27 +45,27 @@ const { date, count, note } = parsed.data;
     );
   }
 
+  if (!user.email) {
+    return NextResponse.json(
+      { error: "No verified email found. Please log out and log back in." },
+      { status: 400 }
+    );
+  }
+
   const targetDate = new Date(date);
 
-  if (!user.email) {
-  return NextResponse.json(
-    { error: "No verified email found on your account. Please log out and log back in." },
-    { status: 400 }
-  );
-}
-
   try {
- for (let i = 0; i < count; i++) {
-await createBackdatedCommit(
-  decrypt(user.githubToken),
-  user.githubUsername,
-  user.repoName,
-  `Backfilled commit ${i + 1}/${count}${note ? `: ${note}` : ""}`,
-  targetDate,
-  user.email!,
-  user.name ?? user.githubUsername
-);
-}
+    for (let i = 0; i < count; i++) {
+      await createBackdatedCommit(
+        decrypt(user.githubToken),
+        user.githubUsername,
+        user.repoName,
+        `Backfilled commit ${i + 1}/${count}${note ? `: ${note}` : ""}`,
+        targetDate,
+        user.email,
+        user.name ?? user.githubUsername
+      );
+    }
 
     const log = await prisma.commitLog.create({
       data: {
@@ -80,7 +74,7 @@ await createBackdatedCommit(
         count,
         type: "custom",
         status: "done",
-        note,
+        note: note ?? null,
       },
     });
 
