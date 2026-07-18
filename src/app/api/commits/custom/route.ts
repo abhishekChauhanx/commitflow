@@ -13,8 +13,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Now TypeScript knows session.user.email is a string — safe to use here
-  const allowed = checkRateLimit(`custom-commit-${session.user.email}`, 5, 60_000);
+  const email = session.user.email;
+
+  const allowed = checkRateLimit(`custom-commit-${email}`, 5, 60_000);
   if (!allowed) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a moment and try again." },
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.errors[0]?.message || "Invalid input" },
+      { error: parsed.error.issues[0]?.message || "Invalid input" },
       { status: 400 }
     );
   }
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   const { date, count, note } = parsed.data;
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
+    where: { email },
   });
 
   if (!user?.githubToken || !user.repoName || !user.githubUsername) {

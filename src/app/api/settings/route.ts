@@ -35,7 +35,7 @@ export async function PATCH(req: Request) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.errors[0]?.message || "Invalid input" },
+      { error: parsed.error.issues[0]?.message || "Invalid input" },
       { status: 400 }
     );
   }
