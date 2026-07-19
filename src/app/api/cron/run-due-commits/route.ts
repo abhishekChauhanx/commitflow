@@ -21,11 +21,26 @@ export async function POST(req: Request) {
   });
 
   const dueUsers = allActiveUsers.filter((user) => {
-    const [h, m] = user.commitTime.split(":").map(Number);
-    const userMinutes = h * 60 + m; // convert to total minutes since midnight
-    const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes(); // current time in total minutes
-    return Math.abs(nowMinutes - userMinutes) <= 5; // within a 5-minute window
-  });
+  const [h, m] = user.commitTime.split(":").map(Number);
+  const userMinutes = h * 60 + m;
+
+  // Convert user's timezone offset to minutes and apply it
+  let offsetMinutes = 0;
+  const tz = user.timezone || "UTC";
+  const match = tz.match(/UTC([+-])(\d{1,2}):(\d{2})/);
+  if (match) {
+    const sign = match[1] === "+" ? 1 : -1;
+    offsetMinutes = sign * (parseInt(match[2]) * 60 + parseInt(match[3]));
+  }
+
+  // Convert user's local commitTime to UTC minutes for comparison
+  let utcUserMinutes = userMinutes - offsetMinutes;
+  if (utcUserMinutes < 0) utcUserMinutes += 1440;
+  if (utcUserMinutes >= 1440) utcUserMinutes -= 1440;
+
+  const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return Math.abs(nowMinutes - utcUserMinutes) <= 5;
+});
   // ========== END OF NEW PART ==========
 
   const results = [];
