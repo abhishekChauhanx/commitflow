@@ -111,15 +111,17 @@ export async function POST(req: Request) {
   const results = [];
 
   for (const user of dueUsers) {
-    const todayStart = new Date(now.toDateString());
-    const alreadyDone = await prisma.commitLog.findFirst({
-      where: {
-        userId: user.id,
-        type: "scheduled",
-        status: "done",
-        createdAt: { gte: todayStart },
-      },
-    });
+  const todayStart = new Date();
+todayStart.setUTCHours(0, 0, 0, 0);
+
+const alreadyDone = await prisma.commitLog.findFirst({
+  where: {
+    userId: user.id,
+    type: "scheduled",
+    status: "done",
+    scheduledFor: { gte: todayStart },
+  },
+});
 
     if (alreadyDone) {
       console.log(`[CRON] User ${user.githubUsername} already committed today, skipping`);

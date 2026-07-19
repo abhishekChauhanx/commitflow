@@ -33,7 +33,7 @@ export async function POST() {
         userId: user.id,
         scheduledFor: new Date(),
         count: 1,
-        type: "scheduled",
+        type: "manual",
         status: "done",
       },
     });
